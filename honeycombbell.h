@@ -32,18 +32,18 @@ public:
   void periodic100msec( void ){}
   void rcvClock( uint8_t msg );
   void checkTwelveTouch( int device );
+  void decideOctave( void );
 
-  void setOctave( int oct ){ _octave = oct;}
   void setSetNumber( int num ){ _setNumber = num;}
   void setMyNumber( int num ){ _myNumber = num;}
 
 private:
-  void nextBeat( void );
+  void displayNextBeat( void );
   void setNeoPixelFade( uint8_t locate, int fadeTime );
   void setNeoPixel( uint8_t locate, LED_STATE sw );
 
 
-  static const int _MAX_BEAT = 4;
+  static const int _MAX_BEAT = 8;
   static const int _MAX_LED_PER_DEVICE = 6;
   static const int _MAX_DEVICE_NUM = 2;
   static const int _MAX_LED = _MAX_LED_PER_DEVICE*_MAX_DEVICE_NUM;

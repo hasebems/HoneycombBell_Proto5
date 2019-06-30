@@ -10,7 +10,7 @@
  */
 #include  <MsTimer2.h>
 #include  <Adafruit_NeoPixel.h>
-//#include  <MIDI.h>
+#include  <MIDI.h>
 
 #include  "configuration.h"
 #include  "TouchMIDI_AVR_if.h"
@@ -33,7 +33,7 @@
 #define MASTER_NORMAL 8
 
 Adafruit_NeoPixel led = Adafruit_NeoPixel(MAX_LED, PIN, NEO_GRB + NEO_KHZ800);
-//MIDI_CREATE_DEFAULT_INSTANCE();
+MIDI_CREATE_DEFAULT_INSTANCE();
 
 /*----------------------------------------------------------------------------*/
 int touchSensor1Err;
@@ -55,12 +55,12 @@ void setup()
 
   //  Initialize Hardware
   wireBegin();
-  Serial.begin(31250);
-//  MIDI.setHandleNoteOff( handlerNoteOff );
-//  MIDI.setHandleNoteOn( handlerNoteOn );
-//  MIDI.setHandleControlChange( handlerCC );
-//  MIDI.turnThruOff();
-//  MIDI.begin();
+//  Serial.begin(31250);
+  MIDI.setHandleNoteOff( handlerNoteOff );
+  MIDI.setHandleNoteOn( handlerNoteOn );
+  MIDI.setHandleControlChange( handlerCC );
+  MIDI.turnThruOff();
+  MIDI.begin();
 
   pinMode(J23PIN, OUTPUT);   // LED
   digitalWrite(J23PIN, LOW);
@@ -128,7 +128,7 @@ void setup()
   else if (( dip1 == LOW  ) && ( dip2 == HIGH ) && ( dip3 == LOW  )){ setNumber = 6;}
   else { setNumber = 1;}
   hcb.setSetNumber(setNumber);
-  hcb.setOctave(4);
+  hcb.decideOctave();
 
   //  Set NeoPixel Library 
   led.begin();
@@ -185,27 +185,29 @@ void generateTimer( void )
 //     MIDI Command & UI
 //
 /*----------------------------------------------------------------------------*/
-void receiveMidi( void ){ /*MIDI.read();*/}
+void receiveMidi( void ){ MIDI.read();}
 /*----------------------------------------------------------------------------*/
 void setMidiNoteOn( uint8_t dt0, uint8_t dt1 )
 {
   uint8_t dt[3] = { 0x90, dt0, dt1 };
-  Serial.write(dt,3);/*MIDI.sendNoteOn( dt0, dt1, 1 );*/
+//  Serial.write(dt,3);
+  MIDI.sendNoteOn( dt0, dt1, 1 );
 }
 /*----------------------------------------------------------------------------*/
 void setMidiNoteOff( uint8_t dt0, uint8_t dt1 )
 {
   uint8_t dt[3] = { 0x80, dt0, dt1 };
-  Serial.write(dt,3);/*MIDI.sendNoteOff( dt0, dt1, 1 );*/
+//  Serial.write(dt,3);
+  MIDI.sendNoteOff( dt0, dt1, 1 );
 }
 /*----------------------------------------------------------------------------*/
-void handlerNoteOn( byte channel , byte number , byte value ){ setMidiNoteOn( number, value );}
+void handlerNoteOn( byte channel , byte number , byte value ){ /*setMidiNoteOn( number, value );*/}
 /*----------------------------------------------------------------------------*/
-void handlerNoteOff( byte channel , byte number , byte value ){ setMidiNoteOff( number, value );}
+void handlerNoteOff( byte channel , byte number , byte value ){ /*setMidiNoteOff( number, value );*/}
 /*----------------------------------------------------------------------------*/
 void handlerCC( byte channel , byte number , byte value )
 {
-  if ( number == 0x10/*midi::GeneralPurposeController1*/ ){
+  if ( number == /*0x10*/ midi::GeneralPurposeController1 ){
     hcb.rcvClock( value );
   }
 }
@@ -213,8 +215,11 @@ void handlerCC( byte channel , byte number , byte value )
 void midiClock( uint8_t msg )
 {
   uint8_t dt[3] = { 0xb0, 0x10, msg };
-  Serial.write(dt,3);  
-  //MIDI.sendControlChange( midi::GeneralPurposeController1, msg, 1 );
+
+  if ( isMasterBoard == false ){
+//  Serial.write(dt,3);
+    MIDI.sendControlChange( midi::GeneralPurposeController1, msg, 1 );
+  }
 }
 /*----------------------------------------------------------------------------*/
 //

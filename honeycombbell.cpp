@@ -13,6 +13,7 @@
 #include "TouchMIDI_AVR_if.h"
 #include "configuration.h"
 #include "i2cdevice.h"
+#include <avr/pgmspace.h>
 
 /*----------------------------------------------------------------------------*/
 extern GlobalTimer gt;
@@ -24,14 +25,14 @@ void HoneycombBell::mainLoop( void )
     //  LED Fade Out
     for ( int i=0; i<_MAX_LED; i++ ){
       if (( _fadeCounter[i] > 0 ) && ( _fadeCounter[i] < _FADE_TIME )){
-        setNeoPixelFade( i, _fadeCounter[i] );
         _fadeCounter[i] -= 1;
+        setNeoPixelFade( i, _fadeCounter[i] );
       }
     }
 
     // only first board
     if (( _myNumber == 0) && ( _nextGlbTm < gt.timer10ms() )){
-      nextBeat();
+      displayNextBeat();
       midiClock(_beat<<4);
       _beat += 1;
       if ( _beat == _MAX_BEAT ){ _beat = 0;}
@@ -44,14 +45,34 @@ void HoneycombBell::mainLoop( void )
   }
 }
 /*----------------------------------------------------------------------------*/
+const uint8_t OctTable[8][16] PROGMEM = {
+  { 5,4,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0},  
+  { 5,4,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0},  //  Set Number:1
+  { 4,5,5,4, 0,0,0,0, 0,0,0,0, 0,0,0,0},  //  :2
+  { 3,4,5,5, 4,3,0,0, 0,0,0,0, 0,0,0,0},  //  :3
+  { 5,4,3,3, 4,5,5,4, 3,0,0,0, 0,0,0,0},  //  :4
+  { 6,5,4,3, 3,4,5,6, 6,5,4,3, 0,0,0,0},  //  :5
+  { 5,4,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0},  //  :6
+  { 5,4,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0}   //  
+};
+/*----------------------------------------------------------------------------*/
+void HoneycombBell::decideOctave( void )
+{
+  _octave = pgm_read_byte_near(OctTable[_setNumber] + _myNumber);
+}
+/*----------------------------------------------------------------------------*/
+//  This function is called when MIDI CC#10h comes to this board.
 void HoneycombBell::rcvClock( uint8_t msg )
 {
   int sentNum = msg & 0x0f;
   int beatNum = (msg & 0x70)>>4;
 
-  _myNumber = sentNum + 1;
+  if ( _myNumber != sentNum + 1 ){
+    _myNumber = sentNum + 1;
+    decideOctave();
+  }
   _beat = beatNum;
-  nextBeat();
+  displayNextBeat();
   midiClock(_myNumber);
 }
 /*----------------------------------------------------------------------------*/
@@ -88,19 +109,27 @@ void HoneycombBell::checkTwelveTouch( int device )
 }
 
 /*----------------------------------------------------------------------------*/
-void HoneycombBell::nextBeat( void )
+void HoneycombBell::displayNextBeat( void )
 {
-  int block = _beat*3;
-  //  light on
-  setNeoPixel( block, WHITE_ON );
-  setNeoPixel( block+1, WHITE_ON );
-  setNeoPixel( block+2, WHITE_ON );
-  if ( block == 0 ){ block = 9;}
-  else { block-=3; }
-  //  light off
-  setNeoPixel( block, LIGHT_OFF );
-  setNeoPixel( block+1, LIGHT_OFF );
-  setNeoPixel( block+2, LIGHT_OFF ); 
+  int beat = _beat;
+  if ( _myNumber == 0 ){
+    if ( beat < 4 ){ beat += 4;}
+    else { beat -= 4;}
+  }
+
+  int block = beat*3;
+  if (( beat >= 0 ) && ( beat < 4 )){
+    setNeoPixel( block, WHITE_ON );
+    setNeoPixel( block+1, WHITE_ON );
+    setNeoPixel( block+2, WHITE_ON );
+  }
+  if (( beat > 0 ) && ( beat <= 4 )){
+    //  light off
+    block-=3;
+    setNeoPixel( block, LIGHT_OFF );
+    setNeoPixel( block+1, LIGHT_OFF );
+    setNeoPixel( block+2, LIGHT_OFF );
+  }
 }
 /*----------------------------------------------------------------------------*/
 void HoneycombBell::setNeoPixelFade( uint8_t locate, int fadeTime )

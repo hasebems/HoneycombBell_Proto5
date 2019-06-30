@@ -78,7 +78,7 @@ public:
   bool      _timer1sec_event;
 
 private:
-  //  if 32bit, it can count during more than 400days.
+
   volatile uint8_t  _globalTime;
   uint32_t  _timer10msec;
   uint32_t  _timer100msec;
