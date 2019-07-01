@@ -19,19 +19,23 @@
 extern GlobalTimer gt;
 
 /*----------------------------------------------------------------------------*/
+HoneycombBell::HoneycombBell( void ) : _swState(), _octave(0),
+                          _tempo(20), _nextGlbTm(20), _beat(0),
+                          _setNumber(0), _myConnectionNumber(0)
+{
+  for ( int i=0; i<_MAX_LED; ++i ){ _led[i].setLocate(i);}
+}
+/*----------------------------------------------------------------------------*/
 void HoneycombBell::mainLoop( void )
 {
   if ( gt.timer10msecEvent() ){
     //  LED Fade Out
     for ( int i=0; i<_MAX_LED; i++ ){
-      if (( _fadeCounter[i] > 0 ) && ( _fadeCounter[i] < _FADE_TIME )){
-        _fadeCounter[i] -= 1;
-        setNeoPixelFade( i, _fadeCounter[i] );
-      }
+      _led[i].checkFade();
     }
 
     // only first board
-    if (( _myNumber == 0) && ( _nextGlbTm < gt.timer10ms() )){
+    if (( _myConnectionNumber == 0) && ( _nextGlbTm < gt.timer10ms() )){
       displayNextBeat();
       midiClock(_beat<<4);
       _beat += 1;
@@ -55,10 +59,9 @@ const uint8_t OctTable[8][16] PROGMEM = {
   { 5,4,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0},  //  :6
   { 5,4,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0}   //  
 };
-/*----------------------------------------------------------------------------*/
 void HoneycombBell::decideOctave( void )
 {
-  _octave = pgm_read_byte_near(OctTable[_setNumber] + _myNumber);
+  _octave = pgm_read_byte_near(OctTable[_setNumber] + _myConnectionNumber);
 }
 /*----------------------------------------------------------------------------*/
 //  This function is called when MIDI CC#10h comes to this board.
@@ -67,13 +70,13 @@ void HoneycombBell::rcvClock( uint8_t msg )
   int sentNum = msg & 0x0f;
   int beatNum = (msg & 0x70)>>4;
 
-  if ( _myNumber != sentNum + 1 ){
-    _myNumber = sentNum + 1;
+  if ( _myConnectionNumber != sentNum + 1 ){
+    _myConnectionNumber = sentNum + 1;
     decideOctave();
   }
   _beat = beatNum;
   displayNextBeat();
-  midiClock(_myNumber);
+  midiClock(_myConnectionNumber);
 }
 /*----------------------------------------------------------------------------*/
 void HoneycombBell::checkTwelveTouch( int device )
@@ -95,11 +98,11 @@ void HoneycombBell::checkTwelveTouch( int device )
       if ( (_swState[device]&bitPtn)^(sw&bitPtn) ){
         if ( sw & bitPtn ){
           setMidiNoteOn( baseNum+i+(12*_octave), 0x7f );
-          setNeoPixel(baseNum+i,TOUCH_ON );
+          _led[baseNum+i].setNeoPixel( TOUCH_ON );
         }
         else {
           setMidiNoteOff( baseNum+i+(12*_octave), 0x40 );
-          setNeoPixel( baseNum+i,FADE_OUT );
+          _led[baseNum+i].setNeoPixel( FADE_OUT );
         }
       }
     }
@@ -109,56 +112,73 @@ void HoneycombBell::checkTwelveTouch( int device )
 }
 
 /*----------------------------------------------------------------------------*/
+const uint8_t EachLedPattern[2][_MAX_LED] PROGMEM = {
+  //  Value means bit0:beat0, bit1:beat1 .... bit7:beat7
+  { 0x80, 0x80, 0x80, 0x40, 0x40, 0x40, 0x20, 0x20, 0x20, 0x10, 0x10, 0x10 },
+  { 0x08, 0x08, 0x08, 0x04, 0x04, 0x04, 0x02, 0x02, 0x02, 0x01, 0x01, 0x01 }
+};
+const uint8_t LedWaitPtnNumber[8][16] PROGMEM = {
+// Select Each Led Pattern above EachLedPattern[x]
+// 1st2nd3rd...(block)
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, //  not use
+  { 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, //  setNumber = 1
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, //  setNumber = 2
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, //  setNumber = 3
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, //  setNumber = 4
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, //  setNumber = 5
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, //  setNumber = 6
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }  //  not use
+};
+/*----------------------------------------------------------------------------*/
 void HoneycombBell::displayNextBeat( void )
 {
-  int beat = _beat;
-  if ( _myNumber == 0 ){
-    if ( beat < 4 ){ beat += 4;}
-    else { beat -= 4;}
-  }
-
-  int block = beat*3;
-  if (( beat >= 0 ) && ( beat < 4 )){
-    setNeoPixel( block, WHITE_ON );
-    setNeoPixel( block+1, WHITE_ON );
-    setNeoPixel( block+2, WHITE_ON );
-  }
-  if (( beat > 0 ) && ( beat <= 4 )){
-    //  light off
-    block-=3;
-    setNeoPixel( block, LIGHT_OFF );
-    setNeoPixel( block+1, LIGHT_OFF );
-    setNeoPixel( block+2, LIGHT_OFF );
-  }
-}
-/*----------------------------------------------------------------------------*/
-void HoneycombBell::setNeoPixelFade( uint8_t locate, int fadeTime )
-{
-  uint8_t red = static_cast<uint8_t>(((int)colorTbl(locate%16,0)*fadeTime)/_FADE_TIME);
-  uint8_t blu = static_cast<uint8_t>(((int)colorTbl(locate%16,1)*fadeTime)/_FADE_TIME);
-  uint8_t grn = static_cast<uint8_t>(((int)colorTbl(locate%16,2)*fadeTime)/_FADE_TIME);
+  const uint8_t beatBit = 0x80 >> _beat;
+  const uint8_t waitPtn = pgm_read_byte_near(LedWaitPtnNumber[_setNumber]+_myConnectionNumber);
   
-  setLed(locate,red,blu,grn);
-  lightLed();
+  for ( int i=0; i<_MAX_LED; i++ ){
+    const uint8_t ptn = pgm_read_byte_near(EachLedPattern[waitPtn]+i);
+    if ( ptn & beatBit ){
+      _led[i].setNeoPixel( WHITE_ON );
+    }
+    else {
+      _led[i].setNeoPixel( LIGHT_OFF );      
+    }
+  }
+}
+
+
+/*----------------------------------------------------------------------------*/
+void EachLed::checkFade( void )
+{
+  if (( _fadeCounter > 0 ) && ( _fadeCounter < _FADE_TIME )){
+    _fadeCounter -= 1;
+
+    const uint8_t red = static_cast<uint8_t>(((int)colorTbl(_myLocate%16,0)*_fadeCounter)/_FADE_TIME);
+    const uint8_t blu = static_cast<uint8_t>(((int)colorTbl(_myLocate%16,1)*_fadeCounter)/_FADE_TIME);
+    const uint8_t grn = static_cast<uint8_t>(((int)colorTbl(_myLocate%16,2)*_fadeCounter)/_FADE_TIME);
+  
+    setLed(_myLocate,red,blu,grn);
+    lightLed();
+  }   
 }
 /*----------------------------------------------------------------------------*/
-void HoneycombBell::setNeoPixel( uint8_t locate, LED_STATE sw )
+void EachLed::setNeoPixel( LED_STATE sw )
 {
   if ( sw == TOUCH_ON ){
-    setLed(locate,colorTbl(locate%16,0),colorTbl(locate%16,1),colorTbl(locate%16,2));
-    _fadeCounter[locate] = _FADE_TIME;
+    setLed(_myLocate,colorTbl(_myLocate%16,0),colorTbl(_myLocate%16,1),colorTbl(_myLocate%16,2));
+    _fadeCounter = _FADE_TIME;
   }
   else if ( sw == FADE_OUT ){
-    if ( _fadeCounter[locate] > 0 ){
-      _fadeCounter[locate] -= 1;
+    if ( _fadeCounter > 0 ){
+      _fadeCounter -= 1;
     }
   }
-  if ( _fadeCounter[locate] == 0 ){
+  if ( _fadeCounter == 0 ){
     if ( sw == LIGHT_OFF ){
-      setLed(locate,0,0,0);
+      setLed(_myLocate,0,0,0);
     }
     else if ( sw == WHITE_ON ){
-      setLed(locate,100,100,100);
+      setLed(_myLocate,100,100,100);
     }
   }
   lightLed();

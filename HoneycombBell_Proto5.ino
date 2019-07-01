@@ -59,8 +59,8 @@ void setup()
   MIDI.setHandleNoteOff( handlerNoteOff );
   MIDI.setHandleNoteOn( handlerNoteOn );
   MIDI.setHandleControlChange( handlerCC );
-  MIDI.turnThruOff();
   MIDI.begin();
+  MIDI.turnThruOff();
 
   pinMode(J23PIN, OUTPUT);   // LED
   digitalWrite(J23PIN, LOW);
@@ -201,9 +201,9 @@ void setMidiNoteOff( uint8_t dt0, uint8_t dt1 )
   MIDI.sendNoteOff( dt0, dt1, 1 );
 }
 /*----------------------------------------------------------------------------*/
-void handlerNoteOn( byte channel , byte number , byte value ){ /*setMidiNoteOn( number, value );*/}
+void handlerNoteOn( byte channel , byte number , byte value ){ setMidiNoteOn( number, value );}
 /*----------------------------------------------------------------------------*/
-void handlerNoteOff( byte channel , byte number , byte value ){ /*setMidiNoteOff( number, value );*/}
+void handlerNoteOff( byte channel , byte number , byte value ){ setMidiNoteOff( number, value );}
 /*----------------------------------------------------------------------------*/
 void handlerCC( byte channel , byte number , byte value )
 {
